@@ -2,16 +2,18 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireCompliance } from '@/lib/compliance';
 import { getSessionId } from '@/lib/session';
 import { adjustBalance, getBalance } from '@/lib/creditsStore';
+import { cashOutGame } from '@/lib/minesEngine';
 
-// DEV-ONLY. Delete this route before any real-money deployment.
 export async function POST(req: NextRequest) {
-  if (process.env.NODE_ENV === 'production') {
-    return NextResponse.json({ error: 'disabled in production' }, { status: 403 });
-  }
   const blocked = await requireCompliance(req);
   if (blocked) return blocked;
   const sessionId = getSessionId(req)!;
 
-  adjustBalance(sessionId, 1000);
-  return NextResponse.json({ balance: getBalance(sessionId) });
+  try {
+    const { game, payout } = cashOutGame(sessionId);
+    adjustBalance(sessionId, payout);
+    return NextResponse.json({ game, balance: getBalance(sessionId) });
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message }, { status: 400 });
+  }
 }

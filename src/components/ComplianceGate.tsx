@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { isJurisdictionAllowed } from '@/config/jurisdictions';
 
 type ComplianceState = { status: 'checking' | 'blocked' | 'needs_kyc' | 'clear' };
 
@@ -11,7 +10,7 @@ export function ComplianceGate({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     async function check() {
       const geoRes = await fetch('/api/compliance/geo').then((r) => r.json());
-      if (!isJurisdictionAllowed(geoRes.countryCode)) {
+      if (!geoRes.allowed) {
         setState({ status: 'blocked' });
         return;
       }

@@ -1,18 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireCompliance } from '@/lib/compliance';
 import { getSessionId } from '@/lib/session';
 import { getOrCreateSession, incrementNonce, rotateSeed } from '@/lib/diceStore';
 import { computeRoll, generateServerSeed, hashServerSeed } from '@/lib/provablyFair';
 import { getBalance, adjustBalance } from '@/lib/creditsStore';
 
-const HOUSE_EDGE = 0.02; // 2% — standard for this game type
+const HOUSE_EDGE = 0.02;
 const MIN_STAKE = 1;
 const MAX_STAKE = 1000;
-const MAX_TARGET = 98; // leave headroom so payout math never divides by ~0
+const MAX_TARGET = 98;
 const MIN_TARGET = 2;
 
 export async function POST(req: NextRequest) {
-  const sessionId = getSessionId(req);
-  if (!sessionId) return NextResponse.json({ error: 'no session' }, { status: 400 });
+  const blocked = await requireCompliance(req);
+  if (blocked) return blocked;
+  const sessionId = getSessionId(req)!;
 
   const { stake, target, direction, clientSeed } = await req.json();
 
@@ -25,11 +27,14 @@ export async function POST(req: NextRequest) {
   if (direction !== 'over' && direction !== 'under') {
     return NextResponse.json({ error: 'direction must be "over" or "under"' }, { status: 400 });
   }
-  if (typeof clientSeed !== 'string' || clientSeed.length === 0) {
-    return NextResponse.json({ error: 'clientSeed is required' }, { status: 400 });
+  if (typeof clientSeed !== 'string' || clientSeed.length === 0 || clientSeed.length > 64) {
+    return NextResponse.json({ error: 'clientSeed required (max 64 chars)' }, { status: 400 });
   }
 
-  if (getBalance(sessionId) < stake) {
+  // Debit first — atomic, throws if balance is short (no check-then-spend race).
+  try {
+    adjustBalance(sessionId, -stake);
+  } catch {
     return NextResponse.json({ error: 'insufficient balance' }, { status: 400 });
   }
 
@@ -38,29 +43,30 @@ export async function POST(req: NextRequest) {
   const roll = computeRoll(session.serverSeed, clientSeed, nonce);
 
   const won = direction === 'over' ? roll > target : roll < target;
-
-  // Win chance and payout multiplier derived from the target, minus
-  // house edge. E.g. betting "under 50" is a 50% win chance; payout
-  // is (100 / winChance) * (1 - houseEdge).
   const winChance = direction === 'over' ? 100 - target : target;
   const multiplier = (100 / winChance) * (1 - HOUSE_EDGE);
 
-  adjustBalance(sessionId, -stake);
   let payout = 0;
   if (won) {
     payout = stake * multiplier;
     adjustBalance(sessionId, payout);
   }
 
+  // Reveal the seed used for THIS roll, then commit a brand-new one.
+  // Revealing without rotating would let the player predict every
+  // future roll.
+  const revealedSeed = session.serverSeed;
+  const nextSeed = generateServerSeed();
+  rotateSeed(sessionId, () => nextSeed);
+
   return NextResponse.json({
     roll,
     won,
     payout,
     newBalance: getBalance(sessionId),
-    // Revealed AFTER the roll — player can now hash this themselves
-    // and confirm it matches the seedHash they were shown before betting.
-    serverSeedRevealed: session.serverSeed,
-    serverSeedHashConfirm: hashServerSeed(session.serverSeed),
+    serverSeedRevealed: revealedSeed,
+    serverSeedHashConfirm: hashServerSeed(revealedSeed),
+    nextServerSeedHash: hashServerSeed(nextSeed),
     clientSeed,
     nonce,
   });
