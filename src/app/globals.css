@@ -1,3 +1,45 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+body {
+  background-color: #0b0e14;
+  color: #e5e7eb;
+  background-image: radial-gradient(circle at 20% -10%, rgba(0, 255, 163, 0.06), transparent 40%);
+}
+
+/* subtle grain — kills the flat, generic-AI-gradient look */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.035;
+  z-index: 1;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+::-webkit-scrollbar { width: 8px; }
+::-webkit-scrollbar-track { background: #0b0e14; }
+::-webkit-scrollbar-thumb { background: #262c3b; border-radius: 4px; }
+
+@keyframes dice-tumble {
+  0% { transform: rotate(0deg) scale(1); }
+  25% { transform: rotate(120deg) scale(1.08); }
+  50% { transform: rotate(240deg) scale(0.95); }
+  75% { transform: rotate(340deg) scale(1.05); }
+  100% { transform: rotate(360deg) scale(1); }
+}
+.animate-dice-tumble { animation: dice-tumble 0.6s ease-in-out infinite; }
+
+@keyframes plane-fly {
+  0% { transform: translate(0, 0) rotate(-8deg); }
+  100% { transform: translate(220px, -140px) rotate(-8deg); }
+}
+.animate-plane-fly { animation: plane-fly linear forwards; }
+
+@keyframes plane-crash {
+  0% { transform: scale(1) rotate(0deg); opacity: 1; }
+  100% { transform: scale(0.3) rotate(90deg); opacity: 0; }
+}
+.animate-plane-crash { animation: plane-crash 0.5s ease-in forwards; }

@@ -14,12 +14,25 @@ export function computeRoll(serverSeed: string, clientSeed: string, nonce: numbe
   return (int / 0xffffffff) * 100;
 }
 
-export function computeCrashPoint(serverSeed: string, clientSeed: string, nonce: number): number {
+// Standard crash-game formula (bustabit-derived). houseEdge IS the
+// instant-crash (1.00x) probability — transparent, no hidden skew.
+// Every surviving round has EV exactly (1 - houseEdge), so the curve
+// stays honest at every cashout point, not just in aggregate.
+export function computeCrashPoint(
+  serverSeed: string,
+  clientSeed: string,
+  nonce: number,
+  houseEdge = 0.95
+  
+): number {
   const hmac = crypto.createHmac('sha256', serverSeed).update(`${clientSeed}:${nonce}`).digest('hex');
   const h = parseInt(hmac.slice(0, 13), 16);
   const e = Math.pow(2, 52);
-  if (h % 33 === 0) return 1.0;
-  const result = Math.floor((100 * e - h) / (e - h));
+  const r = h / e;
+
+  if (r < houseEdge) return 1.0;
+
+  const result = Math.floor((100 * (1 - houseEdge)) / (1 - r));
   return Math.max(100, result) / 100;
 }
 

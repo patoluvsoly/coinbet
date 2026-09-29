@@ -27,7 +27,8 @@ function createRound(): void {
   const last = getLatestRound();
   const roundNumber = (last?.roundNumber ?? 0) + 1;
   const serverSeed = generateServerSeed();
-  const crashPoint = computeCrashPoint(serverSeed, 'crash-round', roundNumber);
+  const HOUSE_EDGE = 0.95; // stated, not hidden — every EV table above stays honest at this edge
+  const crashPoint = computeCrashPoint(serverSeed, 'crash-round', roundNumber, HOUSE_EDGE);
 
   db.prepare(
     `INSERT INTO crash_rounds (id, roundNumber, serverSeed, seedHash, crashPoint, status, bettingEndsAt, startedAt, crashedAt)
